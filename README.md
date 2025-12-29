@@ -170,10 +170,20 @@ cd contracts
 npx hardhat test
 ```
 
-### Deploy to Testnet
-1. Update `hardhat.config.js` with testnet RPC
-2. Add deployer private key to `.env`
-3. Run: `npx hardhat run scripts/deploy.js --network <testnet>`
+### Deploy to Very Network (Mainnet/Testnet)
+1. **Configure Environment**:
+   ```bash
+   cd contracts
+   cp .env.example .env
+   # Edit .env and add your PRIVATE_KEY (ensure it has VERY tokens)
+   ```
+2. **Deploy**:
+   - For Mainnet: `npx hardhat run scripts/deploy-very-network.js --network veryMainnet`
+   - For Testnet: `npx hardhat run scripts/deploy-very-network.js --network veryTestnet`
+3. **Live Contract**: The contract is deployed to Very Network Mainnet.
+   - **Address**: `0xA3012C011643B8a726c7B322D8aFC52a0Bc679d2`
+   - **Chain ID**: 4613
+   - **RPC**: `https://rpc.verylabs.io`
 
 ## 🎯 Hackathon Submission Checklist
 

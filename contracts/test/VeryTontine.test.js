@@ -75,7 +75,7 @@ describe("VeryTontine", function () {
 
             await expect(
                 veryTontine.connect(user1).deposit(1, { value: ethers.parseEther("0.5") })
-            ).to.be.revertedWith("Wrong amount");
+            ).to.be.revertedWithCustomError(veryTontine, "Err");
         });
     });
 
