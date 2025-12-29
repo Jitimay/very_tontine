@@ -47,6 +47,8 @@ function App() {
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [isVerychatConnected, setIsVerychatConnected] = useState(false)
 
+  const [currentView, setCurrentView] = useState('home') // home, discovery, create, room, profile
+
   // Fetch Trust Score
   const fetchTrustScore = async (address, contractInstance) => {
     try {
@@ -150,6 +152,21 @@ function App() {
     }
   }
 
+  // Logout / Disconnect Wallet
+  const disconnectWallet = () => {
+    setAccount(null)
+    setProvider(null)
+    setContract(null)
+    setTrustScore(0)
+    setCircleDetails(null)
+    setCircleMembers([])
+    setRecentEvents([])
+    setIsDemoMode(false)
+    setIsVerychatConnected(false)
+    setNotification("Logged out successfully")
+    setCurrentView('home')
+  }
+
   // Create Circle
   const handleCreateCircle = async () => {
     if (!contract) return
@@ -161,6 +178,7 @@ function App() {
       setNotification("Transaction sent... awaiting confirmation")
       await tx.wait()
       setNotification("Circle Created Successfully!")
+      setCurrentView('home')
     } catch (err) {
       console.error("Error creating circle:", err)
       setError(err.reason || err.message || "Error creating circle")
@@ -179,6 +197,9 @@ function App() {
       setNotification("Transaction sent... awaiting confirmation")
       await tx.wait()
       setNotification(`Joined Circle ${joinCircleId}!`)
+      setCurrentView('room')
+      setViewCircleId(joinCircleId)
+      handleViewCircle()
     } catch (err) {
       console.error("Error joining circle:", err)
       setError(err.reason || err.message || "Error joining circle")
@@ -188,16 +209,16 @@ function App() {
   }
 
   // Start Circle
-  const handleStartCircle = async () => {
-    if (!contract || !startCircleId) return
+  const handleStartCircle = async (id) => {
+    if (!contract || !id) return
     setLoading(true)
     setError(null)
     try {
-      const tx = await contract.startCircle(startCircleId)
+      const tx = await contract.startCircle(id)
       setNotification("Transaction sent... awaiting confirmation")
       await tx.wait()
-      setNotification(`Circle ${startCircleId} Started!`)
-      if (viewCircleId === startCircleId) handleViewCircle()
+      setNotification(`Circle ${id} Started!`)
+      handleViewCircle()
     } catch (err) {
       console.error("Error starting circle:", err)
       setError(err.reason || err.message || "Error starting circle")
@@ -207,18 +228,19 @@ function App() {
   }
 
   // Deposit
-  const handleDeposit = async () => {
-    if (!contract || !depositCircleId) return
+  const handleDeposit = async (id) => {
+    if (!contract || !id) return
     setLoading(true)
     setError(null)
     try {
-      const details = await contract.getCircleDetails(depositCircleId)
+      const details = await contract.getCircleDetails(id)
       const amount = details[1]
 
-      const tx = await contract.deposit(depositCircleId, { value: amount })
+      const tx = await contract.deposit(id, { value: amount })
       setNotification("Transaction sent... awaiting confirmation")
       await tx.wait()
-      setNotification(`Deposit successful for Circle ${depositCircleId}`)
+      setNotification(`Deposit successful for Circle ${id}`)
+      handleViewCircle()
     } catch (err) {
       console.error("Error depositing:", err)
       setError(err.reason || err.message || "Error depositing")
@@ -228,8 +250,8 @@ function App() {
   }
 
   // View Circle Details
-  const handleViewCircle = async () => {
-    const idToView = viewCircleId
+  const handleViewCircle = async (idArg) => {
+    const idToView = idArg || viewCircleId
     if (!contract || !idToView) return
     setLoading(true)
     setError(null)
@@ -240,7 +262,8 @@ function App() {
         contributionAmount: ethers.formatEther(details[1]),
         currentRound: Number(details[2]),
         memberCount: Number(details[3]),
-        active: details[4]
+        active: details[4],
+        id: idToView
       })
 
       // Fetch members
@@ -262,6 +285,7 @@ function App() {
     if (!isDemoMode) {
       // Mock data for judges
       setCircleDetails({
+        id: "1",
         creator: "0xVeryChat...777",
         contributionAmount: "0.1",
         currentRound: 3,
@@ -295,6 +319,194 @@ function App() {
     setNotification("✅ connected to Verychat: @Josh_Buidl")
   }
 
+  // View Renderers
+  const renderDashboard = () => (
+    <div className="section-container">
+      <div className="summary-cards">
+        <div className="card stat-card">
+          <h3>Total Saved</h3>
+          <p className="big-number">1,250 VERY</p>
+        </div>
+        <div className="card stat-card">
+          <h3>Active Circles</h3>
+          <p className="big-number">2</p>
+        </div>
+      </div>
+
+      <div className="section">
+        <h2>My Active Circles</h2>
+        <div className="circles-grid">
+          <div className="circle-card" onClick={() => { setCurrentView('room'); setViewCircleId('1'); handleViewCircle('1'); }}>
+            <h3>Nairobi Savings Circle</h3>
+            <div className="progress-container">
+              <div className="progress-bar" style={{ width: '60%' }}></div>
+            </div>
+            <p>Round 3 of 5</p>
+          </div>
+          <div className="circle-card join-card" onClick={() => setCurrentView('create')}>
+            <div className="plus-icon">+</div>
+            <p>Create New Circle</p>
+          </div>
+        </div>
+      </div>
+
+      {recentEvents.length > 0 && (
+        <div className="section full-width events-section">
+          <h2>Recent Activity</h2>
+          <div className="events-list">
+            {recentEvents.map(event => (
+              <div key={event.id} className="event-item">
+                <span className="event-name">{event.name}</span>
+                <span className="event-details">
+                  {event.name === 'PayoutExecuted' && `Circle ${event.args[0]}: ${event.args[1].slice(0, 6)} received payout`}
+                  {event.name === 'DepositReceived' && `Circle ${event.args[0]}: Deposit from ${event.args[1].slice(0, 6)}`}
+                  {event.name === 'CircleCreated' && `New Circle ${event.args[0]} by ${event.args[1].slice(0, 6)}`}
+                  {event.name === 'MemberJoined' && `Circle ${event.args[0]}: ${event.args[1].slice(0, 6)} joined`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const renderDiscovery = () => (
+    <div className="section-container">
+      <div className="section">
+        <h2>Discovery & Join</h2>
+        <div className="search-container">
+          <input type="text" placeholder="Search public Tontines or enter ID..." value={joinCircleId} onChange={(e) => setJoinCircleId(e.target.value)} />
+          <button className="btn-primary" onClick={handleJoinCircle}>Join</button>
+        </div>
+
+        <div className="list-section">
+          <h3>Verified Circles</h3>
+          <div className="verified-list">
+            <div className="verified-item">
+              <div className="v-info">
+                <strong>Global Chamas</strong>
+                <span>Min Trust: 120</span>
+              </div>
+              <button className="btn-small">Join</button>
+            </div>
+            <div className="verified-item">
+              <div className="v-info">
+                <strong>Tech Buidlers</strong>
+                <span>Min Trust: 150</span>
+              </div>
+              <button className="btn-small">Join</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderCreateCircle = () => (
+    <div className="section-container">
+      <div className="section">
+        <h2>Create a Circle</h2>
+        <div className="form create-form">
+          <div className="form-group">
+            <label>Contribution Amount (VERY)</label>
+            <input type="text" value={contributionAmount} onChange={(e) => setContributionAmount(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Frequency (seconds for demo)</label>
+            <input type="text" value={frequency} onChange={(e) => setFrequency(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Member Limit</label>
+            <input type="number" defaultValue="10" />
+          </div>
+          <div className="form-group">
+            <label>Rotation Logic</label>
+            <select>
+              <option>Sequential (Default)</option>
+              <option>Random</option>
+            </select>
+          </div>
+          <button onClick={handleCreateCircle} className="btn-primary full-width" disabled={loading}>Establish Smart Contract</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderCircleRoom = () => (
+    <div className="section-container">
+      <div className="circle-room-header">
+        <button className="btn-back" onClick={() => setCurrentView('home')}>← Dashboard</button>
+        <h2>Circle Room: {viewCircleId}</h2>
+      </div>
+
+      <div className="circle-room-content">
+        <div className="progress-wheel-container">
+          <div className="progress-wheel">
+            <div className="next-payout">
+              <span>Next Payout</span>
+              <strong>{circleMembers[circleDetails?.currentRound % circleMembers.length]?.slice(0, 6) || "..."}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="section">
+          <h3>Contribution Tracker</h3>
+          <div className="member-status-list">
+            {circleMembers.map((member, i) => (
+              <div key={i} className="member-status-item">
+                <span>{member.slice(0, 8)}...</span>
+                <span className="status-tag pending">⏳ Pending</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="action-footer">
+            <button className="btn-primary" onClick={() => handleDeposit(viewCircleId)}>Deposit {circleDetails?.contributionAmount} VERY</button>
+            <button className="btn-secondary" onClick={() => handleStartCircle(viewCircleId)}>Start Round</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderProfile = () => (
+    <div className="section-container">
+      <div className="section profile-view">
+        <div className="profile-header">
+          <div className="big-score">{trustScore}</div>
+          <h2>Universal Trust Score</h2>
+          {isVerychatConnected && <div className="kyc-badge">KYC VERIFIED</div>}
+        </div>
+
+        <div className="stats-grid">
+          <div className="stat-card">
+            <strong>5</strong>
+            <span>Circles Completed</span>
+          </div>
+          <div className="stat-card">
+            <strong>0</strong>
+            <span>Late Payments</span>
+          </div>
+        </div>
+
+        <div className="history-section">
+          <h3>Recent History</h3>
+          <div className="history-list">
+            <div className="history-item">
+              <span>Circle 1 Payout</span>
+              <span className="h-plus">+5 pts</span>
+            </div>
+            <div className="history-item">
+              <span>Identity Linked</span>
+              <span className="h-plus">+20 pts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="App">
       {loading && <div className="loader-overlay"><div className="loader"></div></div>}
@@ -304,7 +516,7 @@ function App() {
 
       <header>
         <h1>🌍 VeryTontine</h1>
-        <p>Social Savings Circles on Very Network</p>
+        <p>Digitizing community savings on Very Network</p>
       </header>
 
       <main>
@@ -328,12 +540,11 @@ function App() {
             </div>
           </div>
         ) : (
-          <div className="dashboard">
-            <div className="dashboard-header">
-              <div className="wallet-info">
-                <p><strong>Connected:</strong> <span className="address">{account.slice(0, 6)}...{account.slice(-4)}</span></p>
-                <p><strong>Trust Score:</strong> <span className="trust-score">{trustScore}</span></p>
-                {isVerychatConnected && <span className="badge">@Josh_Buidl</span>}
+          <div className="dashboard-container">
+            <div className="top-utility-bar">
+              <div className="wallet-pill">
+                <span className="addr">{account.slice(0, 6)}...</span>
+                <span className="score">⭐ {trustScore}</span>
               </div>
               <div className="demo-toggle">
                 <label className="switch">
@@ -342,125 +553,23 @@ function App() {
                 </label>
                 <span>Demo Mode</span>
               </div>
+              <button onClick={disconnectWallet} className="btn-logout-pill">Logout</button>
             </div>
 
-            <div className="grid-container">
-              <div className="section">
-                <h2>Create New Circle</h2>
-                <div className="form">
-                  <input
-                    type="text"
-                    placeholder="Contribution Amount (ETH)"
-                    value={contributionAmount}
-                    onChange={(e) => setContributionAmount(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Frequency (seconds)"
-                    value={frequency}
-                    onChange={(e) => setFrequency(e.target.value)}
-                  />
-                  <button onClick={handleCreateCircle} className="btn" disabled={loading}>Create Circle</button>
-                </div>
-              </div>
-
-              <div className="section">
-                <h2>Join Circle</h2>
-                <div className="form">
-                  <input
-                    type="text"
-                    placeholder="Circle ID"
-                    value={joinCircleId}
-                    onChange={(e) => setJoinCircleId(e.target.value)}
-                  />
-                  <button onClick={handleJoinCircle} className="btn" disabled={loading}>Join</button>
-                </div>
-              </div>
-
-              <div className="section">
-                <h2>Start Circle</h2>
-                <div className="form">
-                  <input
-                    type="text"
-                    placeholder="Circle ID"
-                    value={startCircleId}
-                    onChange={(e) => setStartCircleId(e.target.value)}
-                  />
-                  <button onClick={handleStartCircle} className="btn" disabled={loading}>Start</button>
-                </div>
-              </div>
-
-              <div className="section">
-                <h2>Make Deposit</h2>
-                <div className="form">
-                  <input
-                    type="text"
-                    placeholder="Circle ID"
-                    value={depositCircleId}
-                    onChange={(e) => setDepositCircleId(e.target.value)}
-                  />
-                  <button onClick={handleDeposit} className="btn" disabled={loading}>Deposit</button>
-                </div>
-              </div>
-
-              <div className="section full-width">
-                <h2>View Circle Details</h2>
-                <div className="form-row">
-                  <input
-                    type="text"
-                    placeholder="Circle ID"
-                    className="flex-1"
-                    value={viewCircleId}
-                    onChange={(e) => setViewCircleId(e.target.value)}
-                  />
-                  <button onClick={handleViewCircle} className="btn" disabled={loading}>View</button>
-                </div>
-
-                {circleDetails && (
-                  <div className="circle-display">
-                    <div className="circle-details">
-                      <p><strong>Creator:</strong> {circleDetails.creator}</p>
-                      <p><strong>Contribution:</strong> {circleDetails.contributionAmount} ETH</p>
-                      <p><strong>Current Round:</strong> {circleDetails.currentRound === 0 ? "Not Started" : circleDetails.currentRound}</p>
-                      <p><strong>Members:</strong> {circleDetails.memberCount}</p>
-                      <p><strong>Status:</strong> {circleDetails.active ? '✅ Active' : '❌ Cancelled'}</p>
-                    </div>
-
-                    {circleMembers.length > 0 && (
-                      <div className="member-list">
-                        <h3>Members</h3>
-                        <ul>
-                          {circleMembers.map((member, i) => (
-                            <li key={i} className={member.toLowerCase() === account.toLowerCase() ? "is-you" : ""}>
-                              {member.slice(0, 10)}...{member.slice(-8)} {member.toLowerCase() === account.toLowerCase() ? "(You)" : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {recentEvents.length > 0 && (
-                <div className="section full-width events-section">
-                  <h2>Recent Activity</h2>
-                  <div className="events-list">
-                    {recentEvents.map(event => (
-                      <div key={event.id} className="event-item">
-                        <span className="event-name">{event.name}</span>
-                        <span className="event-details">
-                          {event.name === 'PayoutExecuted' && `Circle ${event.args[0]}: ${event.args[1].slice(0, 6)} received payout`}
-                          {event.name === 'DepositReceived' && `Circle ${event.args[0]}: Deposit from ${event.args[1].slice(0, 6)}`}
-                          {event.name === 'CircleCreated' && `New Circle ${event.args[0]} by ${event.args[1].slice(0, 6)}`}
-                          {event.name === 'MemberJoined' && `Circle ${event.args[0]}: ${event.args[1].slice(0, 6)} joined`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div className="view-content">
+              {currentView === 'home' && renderDashboard()}
+              {currentView === 'discovery' && renderDiscovery()}
+              {currentView === 'create' && renderCreateCircle()}
+              {currentView === 'room' && renderCircleRoom()}
+              {currentView === 'profile' && renderProfile()}
             </div>
+
+            <nav className="bottom-nav">
+              <button className={currentView === 'home' ? 'active' : ''} onClick={() => setCurrentView('home')}>🏠 Home</button>
+              <button className={currentView === 'discovery' ? 'active' : ''} onClick={() => setCurrentView('discovery')}>🔍 Explore</button>
+              <button className="nav-plus" onClick={() => setCurrentView('create')}>+</button>
+              <button className={currentView === 'profile' ? 'active' : ''} onClick={() => setCurrentView('profile')}>👤 Profile</button>
+            </nav>
           </div>
         )}
       </main>
