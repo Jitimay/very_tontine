@@ -515,7 +515,8 @@ function App() {
       {error && <div className="notification error">{error}</div>}
 
       <header>
-        <h1>🌍 VeryTontine</h1>
+        <img src="/logo1.png" alt="VeryTontine Logo" className="app-logo" />
+        <h1>VeryTontine</h1>
         <p>Digitizing community savings on Very Network</p>
       </header>
 

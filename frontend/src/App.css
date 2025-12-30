@@ -83,6 +83,20 @@ body::before {
   text-align: center;
 }
 
+.app-logo {
+  height: 100px;
+  width: auto;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.2));
+  transition: transform 0.3s ease;
+  position: relative;
+  z-index: 10;
+}
+
+.app-logo:hover {
+  transform: scale(1.05);
+}
+
 header {
   margin-bottom: 3rem;
   position: relative;
@@ -795,6 +809,7 @@ header p {
   font-weight: 800;
   background: var(--gradient-1);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-top: 0.5rem;
 }
@@ -985,6 +1000,7 @@ header p {
   font-weight: 900;
   background: linear-gradient(135deg, #ffd89b 0%, #19033d 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1;
 }
